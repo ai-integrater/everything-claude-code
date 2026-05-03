@@ -17,6 +17,10 @@ const COMMANDS = {
     script: 'catalog.js',
     description: 'Discover install profiles and component IDs',
   },
+  consult: {
+    script: 'consult.js',
+    description: 'Recommend ECC components and profiles from a natural language query',
+  },
   'install-plan': {
     script: 'install-plan.js',
     description: 'Alias for plan',
@@ -33,6 +37,10 @@ const COMMANDS = {
     script: 'repair.js',
     description: 'Restore drifted or missing ECC-managed files',
   },
+  'auto-update': {
+    script: 'auto-update.js',
+    description: 'Pull latest ECC changes and reinstall the current managed targets',
+  },
   status: {
     script: 'status.js',
     description: 'Query the ECC SQLite state store status summary',
@@ -45,6 +53,10 @@ const COMMANDS = {
     script: 'session-inspect.js',
     description: 'Emit canonical ECC session snapshots from dmux or Claude history targets',
   },
+  'loop-status': {
+    script: 'loop-status.js',
+    description: 'Inspect Claude transcripts for stale loop wakeups and pending tool results',
+  },
   uninstall: {
     script: 'uninstall.js',
     description: 'Remove ECC-managed files recorded in install-state',
@@ -55,12 +67,15 @@ const PRIMARY_COMMANDS = [
   'install',
   'plan',
   'catalog',
+  'consult',
   'list-installed',
   'doctor',
   'repair',
+  'auto-update',
   'status',
   'sessions',
   'session-inspect',
+  'loop-status',
   'uninstall',
 ];
 
@@ -87,13 +102,16 @@ Examples:
   ecc catalog profiles
   ecc catalog components --family language
   ecc catalog show framework:nextjs
+  ecc consult "security reviews"
   ecc list-installed --json
   ecc doctor --target cursor
   ecc repair --dry-run
+  ecc auto-update --dry-run
   ecc status --json
   ecc sessions
   ecc sessions session-active --json
   ecc session-inspect claude:latest
+  ecc loop-status --json
   ecc uninstall --target antigravity --dry-run
 `);
 

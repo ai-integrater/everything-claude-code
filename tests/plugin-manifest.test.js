@@ -19,7 +19,6 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..');
-const repoRootWithSep = `${repoRoot}${path.sep}`;
 const packageJsonPath = path.join(repoRoot, 'package.json');
 const packageLockPath = path.join(repoRoot, 'package-lock.json');
 const rootAgentsPath = path.join(repoRoot, 'AGENTS.md');
@@ -35,6 +34,7 @@ const selectiveInstallArchitecturePath = path.join(repoRoot, 'docs', 'SELECTIVE-
 const opencodePackageJsonPath = path.join(repoRoot, '.opencode', 'package.json');
 const opencodePackageLockPath = path.join(repoRoot, '.opencode', 'package-lock.json');
 const opencodeHooksPluginPath = path.join(repoRoot, '.opencode', 'plugins', 'ecc-hooks.ts');
+const semverPattern = '[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?';
 
 let passed = 0;
 let failed = 0;
@@ -67,16 +67,6 @@ function loadJsonObject(filePath, label) {
   );
 
   return parsed;
-}
-
-function assertSafeRepoRelativePath(relativePath, label) {
-  const normalized = path.posix.normalize(relativePath.replace(/\\/g, '/'));
-
-  assert.ok(!path.isAbsolute(relativePath), `${label} must not be absolute: ${relativePath}`);
-  assert.ok(
-    !normalized.startsWith('../') && !normalized.includes('/../'),
-    `${label} must not traverse directories: ${relativePath}`,
-  );
 }
 
 function collectMarkdownFiles(rootPath) {
@@ -118,28 +108,28 @@ test('package-lock.json root version matches package.json', () => {
 
 test('AGENTS.md version line matches package.json', () => {
   const agentsSource = fs.readFileSync(rootAgentsPath, 'utf8');
-  const match = agentsSource.match(/^\*\*Version:\*\* ([0-9]+\.[0-9]+\.[0-9]+)$/m);
+  const match = agentsSource.match(new RegExp(`^\\*\\*Version:\\*\\* (${semverPattern})$`, 'm'));
   assert.ok(match, 'Expected AGENTS.md to declare a top-level version line');
   assert.strictEqual(match[1], expectedVersion);
 });
 
 test('docs/tr/AGENTS.md version line matches package.json', () => {
   const agentsSource = fs.readFileSync(trAgentsPath, 'utf8');
-  const match = agentsSource.match(/^\*\*Sürüm:\*\* ([0-9]+\.[0-9]+\.[0-9]+)$/m);
+  const match = agentsSource.match(new RegExp(`^\\*\\*Sürüm:\\*\\* (${semverPattern})$`, 'm'));
   assert.ok(match, 'Expected docs/tr/AGENTS.md to declare a top-level version line');
   assert.strictEqual(match[1], expectedVersion);
 });
 
 test('docs/zh-CN/AGENTS.md version line matches package.json', () => {
   const agentsSource = fs.readFileSync(zhCnAgentsPath, 'utf8');
-  const match = agentsSource.match(/^\*\*版本:\*\* ([0-9]+\.[0-9]+\.[0-9]+)$/m);
+  const match = agentsSource.match(new RegExp(`^\\*\\*版本:\\*\\* (${semverPattern})$`, 'm'));
   assert.ok(match, 'Expected docs/zh-CN/AGENTS.md to declare a top-level version line');
   assert.strictEqual(match[1], expectedVersion);
 });
 
 test('agent.yaml version matches package.json', () => {
   const agentYamlSource = fs.readFileSync(agentYamlPath, 'utf8');
-  const match = agentYamlSource.match(/^version:\s*([0-9]+\.[0-9]+\.[0-9]+)$/m);
+  const match = agentYamlSource.match(new RegExp(`^version:\\s*(${semverPattern})$`, 'm'));
   assert.ok(match, 'Expected agent.yaml to declare a top-level version field');
   assert.strictEqual(match[1], expectedVersion);
 });
@@ -152,14 +142,14 @@ test('VERSION file matches package.json', () => {
 
 test('docs/SELECTIVE-INSTALL-ARCHITECTURE.md repoVersion example matches package.json', () => {
   const source = fs.readFileSync(selectiveInstallArchitecturePath, 'utf8');
-  const match = source.match(/"repoVersion":\s*"([0-9]+\.[0-9]+\.[0-9]+)"/);
+  const match = source.match(new RegExp(`"repoVersion":\\s*"(${semverPattern})"`));
   assert.ok(match, 'Expected docs/SELECTIVE-INSTALL-ARCHITECTURE.md to declare a repoVersion example');
   assert.strictEqual(match[1], expectedVersion);
 });
 
 test('.opencode/plugins/ecc-hooks.ts active plugin banner matches package.json', () => {
   const source = fs.readFileSync(opencodeHooksPluginPath, 'utf8');
-  const match = source.match(/## Active Plugin: Everything Claude Code v([0-9]+\.[0-9]+\.[0-9]+)/);
+  const match = source.match(new RegExp(`## Active Plugin: Everything Claude Code v(${semverPattern})`));
   assert.ok(match, 'Expected .opencode/plugins/ecc-hooks.ts to declare an active plugin banner');
   assert.strictEqual(match[1], expectedVersion);
 });
@@ -185,6 +175,14 @@ test('README.zh-CN.md latest release heading matches package.json', () => {
   assert.ok(
     source.includes(`### v${expectedVersion} `),
     'Expected README.zh-CN.md to advertise the current release heading',
+  );
+});
+
+test('docs/zh-CN/README.md latest release heading matches package.json', () => {
+  const source = fs.readFileSync(zhCnReadmePath, 'utf8');
+  assert.ok(
+    source.includes(`### v${expectedVersion} `),
+    'Expected docs/zh-CN/README.md to advertise the current release heading',
   );
 });
 
@@ -225,6 +223,24 @@ test('claude plugin.json skills is an array', () => {
 
 test('claude plugin.json commands is an array', () => {
   assert.ok(Array.isArray(claudePlugin.commands), 'Expected commands to be an array');
+});
+
+test('claude plugin.json disables bundled MCP servers for provider tool-name compatibility', () => {
+  const reportedOverlongToolName = `mcp__plugin_${claudePlugin.name}_github__create_pull_request_review`;
+
+  assert.ok(
+    reportedOverlongToolName.length > 64,
+    'Expected the reported GitHub MCP tool name to exceed strict provider limits without the MCP opt-out',
+  );
+  assert.ok(
+    Object.prototype.hasOwnProperty.call(claudePlugin, 'mcpServers'),
+    'Expected mcpServers to be explicitly declared so Claude Code does not auto-load root .mcp.json',
+  );
+  assert.deepStrictEqual(
+    claudePlugin.mcpServers,
+    {},
+    'Claude plugin installs must not auto-bundle root MCP servers; document/manual MCP install remains supported',
+  );
 });
 
 test('claude plugin.json does NOT have explicit hooks declaration', () => {
@@ -445,7 +461,7 @@ test('.opencode/package-lock.json root version matches package.json', () => {
 
 test('README version row matches package.json', () => {
   const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
-  const match = readme.match(/^\| \*\*Version\*\* \| Plugin \| Plugin \| Reference config \| ([0-9][0-9.]*) \|$/m);
+  const match = readme.match(new RegExp(`^\\| \\*\\*Version\\*\\* \\| Plugin \\| Plugin \\| Reference config \\| (${semverPattern}) \\|$`, 'm'));
   assert.ok(match, 'Expected README version summary row');
   assert.strictEqual(match[1], expectedVersion);
 });
@@ -497,7 +513,7 @@ test('user-facing docs do not use the legacy non-URL marketplace add form', () =
 
 test('docs/zh-CN/README.md version row matches package.json', () => {
   const readme = fs.readFileSync(zhCnReadmePath, 'utf8');
-  const match = readme.match(/^\| \*\*版本\*\* \| 插件 \| 插件 \| 参考配置 \| ([0-9][0-9.]*) \|$/m);
+  const match = readme.match(new RegExp(`^\\| \\*\\*版本\\*\\* \\| 插件 \\| 插件 \\| 参考配置 \\| (${semverPattern}) \\|$`, 'm'));
   assert.ok(match, 'Expected docs/zh-CN/README.md version summary row');
   assert.strictEqual(match[1], expectedVersion);
 });
